@@ -1,0 +1,11 @@
+services:
+  gps-tracker:
+    build: .
+    container_name: gps-tracker
+    environment:
+      - DB_PATH=/app/gps_data.db
+      - BUFFER_SIZE=10
+      - SERVER_URL=https://osmand.nzmdn.me/
+    volumes:
+      - ./gps_data.db:/app/gps_data.db
+    restart: unless-stopped
