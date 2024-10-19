@@ -5,10 +5,8 @@ import time
 import sqlite3
 import logging
 import math
-from decouple import Config
+from decouple import config
 
-# Setup decouple for configuration
-config = Config()
 
 # Setup logging
 logging.basicConfig(
