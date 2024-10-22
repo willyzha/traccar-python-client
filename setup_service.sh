@@ -21,11 +21,10 @@ echo "Creating systemd service file at $SERVICE_FILE..."
 sudo bash -c "cat > $SERVICE_FILE" <<EOL
 [Unit]
 Description=GPS Tracker Service
-After=network.target
+After=default.target
 
 [Service]
 Type=simple
-ExecStartPre=/bin/sleep 60
 ExecStart=$PYTHON_PATH $LAUNCHER_PATH
 WorkingDirectory=$SCRIPT_DIR
 Restart=always
@@ -42,8 +41,8 @@ EOL
 echo "Reloading systemd daemon..."
 sudo systemctl daemon-reload
 
-# Enable the service to start on boot
-echo "Enabling GPS Tracker service to start on boot..."
+# Enable the service to start after boot
+echo "Enabling GPS Tracker service to start after system and user programs..."
 sudo systemctl enable $SERVICE_NAME.service
 
 # Start the service now
