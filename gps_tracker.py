@@ -7,7 +7,6 @@ import logging
 import math
 from decouple import config
 
-
 # Setup logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -37,7 +36,7 @@ class Database:
                 """CREATE TABLE IF NOT EXISTS gps_data
                         (id INTEGER PRIMARY KEY AUTOINCREMENT,
                         lat REAL, lon REAL, altitude REAL, accuracy REAL,
-                        timestamp TEXT, speed REAL, bearing REAL, battery REAL)"""
+                        timestamp TEXT, speed REAL, bearing REAL)"""
             )
             conn.commit()
         except sqlite3.Error as e:
@@ -46,15 +45,15 @@ class Database:
             conn.close()
 
     @staticmethod
-    def store_gps_data(lat, lon, alt, acc, timestamp, speed, bearing, battery):
+    def store_gps_data(lat, lon, alt, acc, timestamp, speed, bearing):
         """Store GPS data locally in the SQLite database."""
         try:
             conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()
             c.execute(
-                """INSERT INTO gps_data (lat, lon, altitude, accuracy, timestamp, speed, bearing, battery)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (lat, lon, alt, acc, timestamp, speed, bearing, battery),
+                """INSERT INTO gps_data (lat, lon, altitude, accuracy, timestamp, speed, bearing)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (lat, lon, alt, acc, timestamp, speed, bearing),
             )
             conn.commit()
         except sqlite3.Error as e:
@@ -106,7 +105,7 @@ class Network:
         """Send a batch of GPS data points to the server."""
         success = True
         for data in data_batch:
-            lat, lon, alt, acc, timestamp, speed, bearing, battery = data
+            lat, lon, alt, acc, timestamp, speed, bearing = data
             params = {
                 "deviceid": DEVICE_ID,
                 "lat": lat,
@@ -116,7 +115,6 @@ class Network:
                 "timestamp": timestamp,
                 "speed": speed,
                 "bearing": bearing if bearing is not None else 0,
-                "batt": battery if battery is not None else 0,
             }
 
             try:
@@ -135,17 +133,6 @@ class Network:
 
 ### GPS and Data Management ###
 class GPSHandler:
-    @staticmethod
-    def get_battery_level(sm):
-        """Get the current battery level from the deviceState message."""
-        try:
-            if sm.updated["deviceState"]:
-                battery_level = sm["deviceState"].batteryPercent
-                return battery_level
-        except Exception as e:
-            logging.error(f"Error getting battery level: {e}")
-        return None
-
     @staticmethod
     def calculate_bearing(lat1, lon1, lat2, lon2):
         """Calculate the bearing between two GPS coordinates."""
@@ -193,9 +180,6 @@ class GPSHandler:
             # Choose speed from gpsLocation or calculate it if not present
             final_speed = speed if speed is not None and speed > 0 else calculated_speed
 
-            # Get battery level
-            # battery_level = GPSHandler.get_battery_level(sm)
-
             return (
                 latitude,
                 longitude,
@@ -214,10 +198,8 @@ class GPSTrackerApp:
     def flush_buffer():
         """Flush the in-memory buffer to the SQLite database if there's no internet."""
         for data in gps_buffer:
-            lat, lon, alt, acc, timestamp, speed, bearing, battery = data
-            Database.store_gps_data(
-                lat, lon, alt, acc, timestamp, speed, bearing, battery
-            )
+            lat, lon, alt, acc, timestamp, speed, bearing = data
+            Database.store_gps_data(lat, lon, alt, acc, timestamp, speed, bearing)
         gps_buffer.clear()
 
     @staticmethod
