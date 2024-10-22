@@ -25,7 +25,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStartPre=/bin/sleep 60  # Delay the start of the service by 60 seconds (1 minute)
+ExecStartPre=/bin/sleep 60
 ExecStart=$PYTHON_PATH $LAUNCHER_PATH
 WorkingDirectory=$SCRIPT_DIR
 Restart=always
