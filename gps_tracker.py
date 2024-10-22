@@ -18,7 +18,7 @@ DB_PATH = config("DB_PATH", default="gps_data.db")
 BUFFER_SIZE = int(config("BUFFER_SIZE", default=10))
 SERVER_URL = config("SERVER_URL", default="https://osmand.nzmdn.me/")
 DEVICE_ID = config("DEVICE_ID", default="971543493196")
-UPDATE_FREQUENCY = config("UPDATE_FREQUENCY", default="5")
+UPDATE_FREQUENCY = int(config("UPDATE_FREQUENCY", default="5"))
 
 gps_buffer = []
 previous_lat = None
@@ -136,14 +136,11 @@ class Network:
 ### GPS and Data Management ###
 class GPSHandler:
     @staticmethod
-    def get_battery_level():
+    def get_battery_level(sm):
         """Get the current battery level from the deviceState message."""
         try:
-            device_state_socket = messaging.sub_sock("deviceState", conflate=True)
-            msg = messaging.recv_one_or_none(device_state_socket)
-
-            if msg is not None:
-                battery_level = msg.deviceState.batteryPercent
+            if sm.updated["deviceState"]:
+                battery_level = sm["deviceState"].batteryPercent
                 return battery_level
         except Exception as e:
             logging.error(f"Error getting battery level: {e}")
@@ -168,43 +165,45 @@ class GPSHandler:
         return bearing
 
     @staticmethod
-    def get_gps_data():
-        """Get GPS data including speed, bearing, and battery level from ubloxRaw and deviceState messages."""
+    def get_gps_data(sm):
+        """Get GPS data including speed, bearing, and battery level from gpsLocation."""
         global previous_lat, previous_lon
 
-        gps_socket = messaging.sub_sock("ubloxRaw", conflate=True)
-        msg = messaging.recv_one_or_none(gps_socket)
-
-        if msg is not None:
-            gps = msg.ubloxRaw
-            latitude = gps.navPosLlh.lat
-            longitude = gps.navPosLlh.lon
-            altitude = gps.navPosLlh.height
-            accuracy = gps.navPosLlh.hAcc
+        # Check if gpsLocation is updated
+        if sm.updated["gpsLocation"]:
+            gps = sm["gpsLocation"]
+            latitude = gps.latitude
+            longitude = gps.longitude
+            altitude = gps.altitude
+            speed = gps.speed
+            bearing = gps.bearingDeg
+            accuracy = gps.horizontalAccuracy
             timestamp = datetime.utcnow().isoformat() + "Z"
 
-            # Extract velocity components (NED - North, East, Down)
-            vel_n = gps.navVelNed.velN
-            vel_e = gps.navVelNed.velE
-            vel_d = gps.navVelNed.velD
+            # Extract velocity components (vNED - North, East, Down)
+            vel_n, vel_e, vel_d = gps.vNED
 
-            # Calculate speed from velocity components (Pythagorean theorem)
-            speed = (vel_n**2 + vel_e**2 + vel_d**2) ** 0.5
-
-            # Calculate bearing if previous position is available
-            if previous_lat is not None and previous_lon is not None:
-                bearing = GPSHandler.calculate_bearing(
-                    previous_lat, previous_lon, latitude, longitude
-                )
-            else:
-                bearing = None  # Bearing not available on the first point
+            # If no bearing is available from gpsLocation, calculate it using the previous position
+            if bearing is None or bearing == 0:
+                if previous_lat is not None and previous_lon is not None:
+                    bearing = GPSHandler.calculate_bearing(
+                        previous_lat, previous_lon, latitude, longitude
+                    )
+                else:
+                    bearing = None  # Bearing not available if no previous point exists
 
             # Update previous GPS position
             previous_lat = latitude
             previous_lon = longitude
 
+            # Calculate speed from velocity components (Pythagorean theorem) if needed
+            calculated_speed = (vel_n**2 + vel_e**2 + vel_d**2) ** 0.5
+
+            # Choose speed from gpsLocation or calculate it if not present
+            final_speed = speed if speed is not None and speed > 0 else calculated_speed
+
             # Get battery level
-            battery_level = GPSHandler.get_battery_level()
+            battery_level = GPSHandler.get_battery_level(sm)
 
             return (
                 latitude,
@@ -212,7 +211,7 @@ class GPSHandler:
                 altitude,
                 accuracy,
                 timestamp,
-                speed,
+                final_speed,
                 bearing,
                 battery_level,
             )
@@ -247,9 +246,19 @@ class GPSTrackerApp:
 
     @staticmethod
     def run():
+        try:
+            sm = messaging.SubMaster(["gpsLocation", "deviceState"])
+        except Exception as e:
+            logging.error(f"Failed to initialize SubMaster: {e}")
+            return
+
         while True:
             try:
-                gps_data = GPSHandler.get_gps_data()
+                # Update SubMaster every 5 seconds (5000ms)
+                sm.update(5000)
+
+                # Get GPS data using the SubMaster instance
+                gps_data = GPSHandler.get_gps_data(sm)
                 if gps_data:
                     gps_buffer.append(gps_data)
 
@@ -271,9 +280,7 @@ class GPSTrackerApp:
                 # Try to send any stored data when internet becomes available
                 GPSTrackerApp.send_stored_data()
 
-                time.sleep(
-                    UPDATE_FREQUENCY
-                )  # Adjust the frequency of GPS data collection
+                time.sleep(UPDATE_FREQUENCY)
             except Exception as e:
                 logging.error(f"Error in GPS tracking loop: {e}")
                 time.sleep(10)  # Retry after a delay in case of errors
