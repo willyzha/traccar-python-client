@@ -2,7 +2,7 @@
 
 # Variables
 SERVICE_NAME="gps-tracker"
-SCRIPT_DIR="/data/openpilot/traccar-python-client" # Path to traccar-python-client
+SCRIPT_DIR="/data/openpilot/traccar-python-client"  # Path to traccar-python-client
 LAUNCHER_PATH="$SCRIPT_DIR/launcher.sh"
 LOG_DIR="$SCRIPT_DIR/logs"
 LOG_FILE="$LOG_DIR/gps_tracker.log"
