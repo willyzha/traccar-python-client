@@ -183,15 +183,6 @@ class GPSHandler:
             # Extract velocity components (vNED - North, East, Down)
             vel_n, vel_e, vel_d = gps.vNED
 
-            # If no bearing is available from gpsLocation, calculate it using the previous position
-            if bearing is None or bearing == 0:
-                if previous_lat is not None and previous_lon is not None:
-                    bearing = GPSHandler.calculate_bearing(
-                        previous_lat, previous_lon, latitude, longitude
-                    )
-                else:
-                    bearing = None  # Bearing not available if no previous point exists
-
             # Update previous GPS position
             previous_lat = latitude
             previous_lon = longitude
@@ -259,6 +250,8 @@ class GPSTrackerApp:
 
                 # Get GPS data using the SubMaster instance
                 gps_data = GPSHandler.get_gps_data(sm)
+
+                logging.info(gps_data)
                 if gps_data:
                     gps_buffer.append(gps_data)
 
