@@ -194,7 +194,7 @@ class GPSHandler:
             final_speed = speed if speed is not None and speed > 0 else calculated_speed
 
             # Get battery level
-            battery_level = GPSHandler.get_battery_level(sm)
+            # battery_level = GPSHandler.get_battery_level(sm)
 
             return (
                 latitude,
@@ -204,7 +204,6 @@ class GPSHandler:
                 timestamp,
                 final_speed,
                 bearing,
-                battery_level,
             )
         return None
 
@@ -252,6 +251,7 @@ class GPSTrackerApp:
                 gps_data = GPSHandler.get_gps_data(sm)
 
                 logging.info(gps_data)
+
                 if gps_data:
                     gps_buffer.append(gps_data)
 
