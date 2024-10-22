@@ -101,34 +101,32 @@ class Network:
             return False
 
     @staticmethod
-    def send_gps_data_batch(data_batch):
-        """Send a batch of GPS data points to the server."""
-        success = True
-        for data in data_batch:
-            lat, lon, alt, acc, timestamp, speed, bearing = data
-            params = {
-                "deviceid": DEVICE_ID,
-                "lat": lat,
-                "lon": lon,
-                "altitude": alt,
-                "accuracy": acc,
-                "timestamp": timestamp,
-                "speed": speed,
-                "bearing": bearing if bearing is not None else 0,
-            }
+    def send_gps_data(lat, lon, alt, acc, timestamp, speed, bearing):
+        """Send the current GPS data to the server."""
+        params = {
+            "deviceid": DEVICE_ID,
+            "lat": lat,
+            "lon": lon,
+            "altitude": alt,
+            "accuracy": acc,
+            "timestamp": timestamp,
+            "speed": speed,
+            "bearing": bearing if bearing is not None else 0,
+        }
 
-            try:
-                response = requests.get(SERVER_URL, params=params)
-                if response.status_code != 200:
-                    success = False
-                    logging.error(
-                        f"Failed to send data. Status code: {response.status_code}"
-                    )
-            except Exception as e:
-                success = False
-                logging.error(f"Error occurred while sending data: {e}")
-
-        return success
+        try:
+            response = requests.get(SERVER_URL, params=params)
+            if response.status_code == 200:
+                logging.info(f"Data sent: {params}")
+                return True
+            else:
+                logging.error(
+                    f"Failed to send data. Status code: {response.status_code}"
+                )
+                return False
+        except Exception as e:
+            logging.error(f"Error occurred while sending data: {e}")
+            return False
 
 
 ### GPS and Data Management ###
@@ -153,7 +151,7 @@ class GPSHandler:
 
     @staticmethod
     def get_gps_data(sm):
-        """Get GPS data including speed, bearing, and battery level from gpsLocation."""
+        """Get GPS data from gpsLocation."""
         global previous_lat, previous_lon
 
         # Check if gpsLocation is updated
@@ -208,11 +206,19 @@ class GPSTrackerApp:
         if Network.is_internet_available():
             stored_data = Database.fetch_stored_data()
             if stored_data:
-                if Network.send_gps_data_batch(stored_data):
+                success = True
+                for data in stored_data:
+                    lat, lon, alt, acc, timestamp, speed, bearing = data
+                    if not Network.send_gps_data(
+                        lat, lon, alt, acc, timestamp, speed, bearing
+                    ):
+                        success = False
+
+                if success:
                     logging.info("Successfully sent all stored data.")
                     Database.delete_stored_data()
                 else:
-                    logging.error("Failed to send stored data.")
+                    logging.error("Failed to send some stored data.")
             else:
                 logging.info("No stored data to send.")
 
@@ -232,25 +238,38 @@ class GPSTrackerApp:
                 # Get GPS data using the SubMaster instance
                 gps_data = GPSHandler.get_gps_data(sm)
 
-                logging.info(gps_data)
-
                 if gps_data:
-                    gps_buffer.append(gps_data)
+                    (
+                        latitude,
+                        longitude,
+                        altitude,
+                        accuracy,
+                        timestamp,
+                        speed,
+                        bearing,
+                    ) = gps_data
 
-                    # If the buffer is full, attempt to send it or store it locally
-                    if len(gps_buffer) >= BUFFER_SIZE:
-                        if Network.is_internet_available():
-                            if Network.send_gps_data_batch(gps_buffer):
-                                logging.info("Data sent from buffer.")
-                                gps_buffer.clear()  # Clear the buffer after successful send
-                            else:
-                                logging.error(
-                                    "Failed to send buffer data, storing locally."
-                                )
-                                GPSTrackerApp.flush_buffer()
-                        else:
-                            logging.info("No internet, storing buffer locally.")
-                            GPSTrackerApp.flush_buffer()
+                    if Network.is_internet_available():
+                        if not Network.send_gps_data(
+                            latitude,
+                            longitude,
+                            altitude,
+                            accuracy,
+                            timestamp,
+                            speed,
+                            bearing,
+                        ):
+                            # Store data locally if sending fails
+                            gps_buffer.append(gps_data)
+                            logging.info("Storing data locally due to failed send.")
+                    else:
+                        # Store data locally if no internet
+                        gps_buffer.append(gps_data)
+                        logging.info("No internet, storing data locally.")
+
+                # Flush buffer to local DB if necessary
+                if gps_buffer:
+                    GPSTrackerApp.flush_buffer()
 
                 # Try to send any stored data when internet becomes available
                 GPSTrackerApp.send_stored_data()
