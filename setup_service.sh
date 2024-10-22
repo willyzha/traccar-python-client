@@ -25,7 +25,7 @@ After=default.target
 
 [Service]
 Type=simple
-ExecStart=$PYTHON_PATH $LAUNCHER_PATH
+ExecStart=/bin/bash $LAUNCHER_PATH
 WorkingDirectory=$SCRIPT_DIR
 Restart=always
 RestartSec=10
