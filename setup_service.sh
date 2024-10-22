@@ -6,6 +6,7 @@ SCRIPT_DIR="/data/openpilot/traccar-python-client" # Path to traccar-python-clie
 LAUNCHER_PATH="$SCRIPT_DIR/launcher.sh"
 LOG_DIR="$SCRIPT_DIR/logs"
 LOG_FILE="$LOG_DIR/gps_tracker.log"
+SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 
 # Ensure the logs directory exists
 mkdir -p $LOG_DIR
@@ -13,25 +14,37 @@ mkdir -p $LOG_DIR
 # Ensure launcher.sh is executable
 chmod +x $LAUNCHER_PATH
 
-# Check if crontab is available
-if ! command -v crontab &>/dev/null; then
-    echo "Error: crontab command not found. Please install cron."
-    exit 1
-fi
+# Create the systemd service file
+echo "Creating systemd service file at $SERVICE_FILE..."
 
-# Write a cron job to execute the launcher script on system boot
-echo "Setting up cron job to run the GPS Tracker on system boot..."
+sudo bash -c "cat > $SERVICE_FILE" <<EOL
+[Unit]
+Description=GPS Tracker Service
+After=network.target
 
-# Add the cron job to the user's crontab
-(
-    crontab -l 2>/dev/null | grep -v "@reboot $LAUNCHER_PATH" # Avoid duplicates
-    echo "@reboot $LAUNCHER_PATH >> $LOG_FILE 2>&1"
-) | crontab -
+[Service]
+Type=simple
+ExecStart=$LAUNCHER_PATH
+WorkingDirectory=$SCRIPT_DIR
+Restart=always
+RestartSec=10
+StandardOutput=append:$LOG_FILE
+StandardError=append:$LOG_FILE
 
-# Confirm the cron job was added
-if crontab -l | grep -q "@reboot $LAUNCHER_PATH"; then
-    echo "Cron job setup complete. GPS tracker will run on system boot."
-    echo "Logs are located at $LOG_FILE"
-else
-    echo "Failed to set up the cron job."
-fi
+[Install]
+WantedBy=multi-user.target
+EOL
+
+# Reload systemd to recognize the new service
+echo "Reloading systemd daemon..."
+sudo systemctl daemon-reload
+
+# Enable the service to start on boot
+echo "Enabling GPS Tracker service to start on boot..."
+sudo systemctl enable $SERVICE_NAME.service
+
+# Start the service now
+echo "Starting GPS Tracker service..."
+sudo systemctl start $SERVICE_NAME.service
+
+echo "Service setup complete. Logs are located at $LOG_FILE"
