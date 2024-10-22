@@ -10,7 +10,7 @@ SCRIPT_PATH="$SCRIPT_DIR/gps_tracker.py"
 # Specify the Python path
 PYTHON_PATH="/usr/local/pyenv/shims/python3"
 
-# Add openpilot directory to PYTHONPATH so that the script can find the 'cereal' package
+# Add OpenPilot directory to PYTHONPATH so that the script can find the 'cereal' package
 export PYTHONPATH="$OPENPILOT_DIR:$PYTHONPATH"
 
 # Ensure all dependencies are installed using the correct Python interpreter
