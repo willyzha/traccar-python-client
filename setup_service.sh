@@ -7,7 +7,6 @@ LAUNCHER_PATH="$SCRIPT_DIR/launcher.sh"
 LOG_DIR="$SCRIPT_DIR/logs"
 LOG_FILE="$LOG_DIR/gps_tracker.log"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
-LAST_TARGET_FILE="/etc/systemd/system/last.target"
 PYTHON_PATH="/usr/local/pyenv/shims/python3" # Path to the specific Python interpreter
 
 # Ensure the logs directory exists
@@ -16,29 +15,18 @@ mkdir -p $LOG_DIR
 # Ensure launcher.sh is executable
 chmod +x $LAUNCHER_PATH
 
-# Create the last.target file to ensure this service starts last
-echo "Creating last target file at $LAST_TARGET_FILE..."
-sudo bash -c "cat > $LAST_TARGET_FILE" <<EOL
-[Unit]
-Description=Last Target
-Requires=multi-user.target
-After=multi-user.target
-
-[Install]
-WantedBy=multi-user.target
-EOL
-
-# Create the systemd service file with hardcoded paths and limits
+# Create the systemd service file with simplified dependencies
 echo "Creating systemd service file at $SERVICE_FILE..."
 
 sudo bash -c "cat > $SERVICE_FILE" <<EOL
 [Unit]
 Description=GPS Tracker Service
-After=last.target
-Wants=last.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
+ExecStartPre=/bin/sleep 10
 ExecStart=/bin/bash /data/openpilot/traccar-python-client/launcher.sh
 WorkingDirectory=/data/openpilot/traccar-python-client
 Restart=always
@@ -57,9 +45,8 @@ EOL
 echo "Reloading systemd daemon..."
 sudo systemctl daemon-reload
 
-# Enable both last.target and the GPS Tracker service
-echo "Enabling last target and GPS Tracker service to start at the end of the boot process..."
-sudo systemctl enable last.target
+# Enable the GPS Tracker service
+echo "Enabling GPS Tracker service to start after network-online.target..."
 sudo systemctl enable $SERVICE_NAME.service
 
 # Start the service now
