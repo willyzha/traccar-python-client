@@ -23,9 +23,12 @@ sudo bash -c "cat > $LAST_TARGET_FILE" <<EOL
 Description=Last Target
 Requires=multi-user.target
 After=multi-user.target
+
+[Install]
+WantedBy=multi-user.target
 EOL
 
-# Create the systemd service file
+# Create the systemd service file with hardcoded paths and limits
 echo "Creating systemd service file at $SERVICE_FILE..."
 
 sudo bash -c "cat > $SERVICE_FILE" <<EOL
@@ -36,13 +39,15 @@ Wants=last.target
 
 [Service]
 Type=simple
-ExecStart=/bin/bash $LAUNCHER_PATH
-WorkingDirectory=$SCRIPT_DIR
+ExecStart=/bin/bash /data/openpilot/traccar-python-client/launcher.sh
+WorkingDirectory=/data/openpilot/traccar-python-client
 Restart=always
 RestartSec=10
-StandardOutput=append:$LOG_FILE
-StandardError=append:$LOG_FILE
-Environment="PYTHONPATH=$PYTHON_PATH"
+StartLimitInterval=200
+StartLimitBurst=5
+StandardOutput=append:/data/openpilot/traccar-python-client/logs/gps_tracker.log
+StandardError=append:/data/openpilot/traccar-python-client/logs/gps_tracker.log
+Environment="PYTHONPATH=/usr/local/pyenv/shims/python3"
 
 [Install]
 WantedBy=multi-user.target
