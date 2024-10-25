@@ -237,8 +237,12 @@ class GPSTrackerApp:
 
                 # Get GPS data using the SubMaster instance
                 gps_data = GPSHandler.get_gps_data(sm)
+                timestamp = (
+                    datetime.utcnow().isoformat() + "Z"
+                )  # Always get the current timestamp
 
                 if gps_data:
+                    # Unpack the available GPS data
                     (
                         latitude,
                         longitude,
@@ -249,6 +253,7 @@ class GPSTrackerApp:
                         bearing,
                     ) = gps_data
 
+                    # Send GPS data with timestamp if internet is available
                     if Network.is_internet_available():
                         if not Network.send_gps_data(
                             latitude,
@@ -259,13 +264,36 @@ class GPSTrackerApp:
                             speed,
                             bearing,
                         ):
-                            # Store data locally if sending fails
                             gps_buffer.append(gps_data)
                             logging.info("Storing data locally due to failed send.")
                     else:
-                        # Store data locally if no internet
                         gps_buffer.append(gps_data)
                         logging.info("No internet, storing data locally.")
+                else:
+                    # Send only timestamp when GPS data is unavailable
+                    if Network.is_internet_available():
+                        if not Network.send_gps_data(
+                            lat=None,
+                            lon=None,
+                            alt=None,
+                            acc=None,
+                            timestamp=timestamp,
+                            speed=None,
+                            bearing=None,
+                        ):
+                            gps_buffer.append(
+                                (None, None, None, None, timestamp, None, None)
+                            )
+                            logging.info(
+                                "Storing timestamp locally due to failed send."
+                            )
+                    else:
+                        gps_buffer.append(
+                            (None, None, None, None, timestamp, None, None)
+                        )
+                        logging.info(
+                            "No GPS data, storing timestamp locally due to no internet."
+                        )
 
                 # Flush buffer to local DB if necessary
                 if gps_buffer:
@@ -277,7 +305,7 @@ class GPSTrackerApp:
                 time.sleep(UPDATE_FREQUENCY)
             except Exception as e:
                 logging.error(f"Error in GPS tracking loop: {e}")
-                time.sleep(10)  # Retry after a delay in case of errors
+                time.sleep(10)
 
 
 if __name__ == "__main__":
