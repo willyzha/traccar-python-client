@@ -178,6 +178,8 @@ class GPSHandler:
             # Choose speed from gpsLocation or calculate it if not present
             final_speed = speed if speed is not None and speed > 0 else calculated_speed
 
+            final_speed = 1.852 * final_speed
+
             return (
                 latitude,
                 longitude,
