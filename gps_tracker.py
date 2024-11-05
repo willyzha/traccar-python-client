@@ -15,9 +15,13 @@ logging.basicConfig(
 # Constants
 DB_PATH = config("DB_PATH", default="gps_data.db")
 BUFFER_SIZE = int(config("BUFFER_SIZE", default=10))
-SERVER_URL = config("SERVER_URL", default="https://osmand.nzmdn.me/")
-DEVICE_ID = config("DEVICE_ID", default="971543493196")
+SERVER_URL = config("SERVER_URL", default="")
+SERVER_PORT = config("SERVER_PORT", default="")
+DEVICE_ID = config("DEVICE_ID", default="123456")
 UPDATE_FREQUENCY = int(config("UPDATE_FREQUENCY", default="5"))
+
+if SERVER_PORT:
+    SERVER_URL = f"{SERVER_URL}:{SERVER_PORT}"
 
 gps_buffer = []
 previous_lat = None
