@@ -13,9 +13,6 @@ PYTHON_PATH="/usr/local/pyenv/shims/python3"
 # Add OpenPilot directory to PYTHONPATH so that the script can find the 'cereal' package
 export PYTHONPATH="$OPENPILOT_DIR:$PYTHONPATH"
 
-# Ensure all dependencies are installed using the correct Python interpreter
-$PYTHON_PATH -m pip install -r $SCRIPT_DIR/requirements.txt
-
 # Check if the process is already running
 if pgrep -f $SCRIPT_PATH >/dev/null; then
     echo "GPS Tracker is already running."

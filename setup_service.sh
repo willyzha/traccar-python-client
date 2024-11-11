@@ -15,6 +15,9 @@ mkdir -p $LOG_DIR
 # Ensure launcher.sh is executable
 chmod +x $LAUNCHER_PATH
 
+# Ensure all dependencies are installed using the correct Python interpreter
+$PYTHON_PATH -m pip install -r $SCRIPT_DIR/requirements.txt
+
 # Create the systemd service file with simplified dependencies
 echo "Creating systemd service file at $SERVICE_FILE..."
 
