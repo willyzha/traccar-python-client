@@ -41,6 +41,20 @@ Ensure all Python dependencies are installed:
 
     pip install -r requirements.txt
     
+### Setup Instructions
+
+    sudo mount -o remount,rw /persist
+    cd /persist
+    git clone https://github.com/webnizam/traccar-python-client
+
+    # Edit and config .env as required
+
+    sudo mount -o remount,rw /
+    sudo bash setup_service.sh
+    
+    # Reboot and test
+    sudo reboot
+    systemctl status gps-tracker.service
 
 Contributions & Support
 -----------------------
