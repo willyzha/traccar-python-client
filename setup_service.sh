@@ -7,9 +7,6 @@ LAUNCHER_PATH="$SCRIPT_DIR/launcher.sh"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 PYTHON_PATH="/usr/local/pyenv/shims/python3" # Path to the specific Python interpreter
 
-# Ensure the logs directory exists
-mkdir -p $LOG_DIR
-
 # Ensure launcher.sh is executable
 chmod +x $LAUNCHER_PATH
 
