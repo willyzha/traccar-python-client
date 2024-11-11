@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define the working directory for the GPS tracker
-SCRIPT_DIR="/data/openpilot/traccar-python-client"
+SCRIPT_DIR="/persist/traccar-python-client"
 OPENPILOT_DIR="/data/openpilot" # The directory where the OpenPilot code is located
 
 # Path to the Python script
