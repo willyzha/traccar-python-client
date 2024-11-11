@@ -52,8 +52,4 @@ sudo systemctl daemon-reload
 echo "Enabling GPS Tracker service to start after network-online.target..."
 sudo systemctl enable $SERVICE_NAME.service
 
-# Start the service now
-echo "Starting GPS Tracker service..."
-sudo systemctl start $SERVICE_NAME.service
-
 echo "Service setup complete. Logs are located at $LOG_FILE"
