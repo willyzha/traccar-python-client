@@ -4,8 +4,6 @@
 SERVICE_NAME="gps-tracker"
 SCRIPT_DIR="/persist/traccar-python-client" # Path to traccar-python-client
 LAUNCHER_PATH="$SCRIPT_DIR/launcher.sh"
-LOG_DIR="$SCRIPT_DIR/logs"
-LOG_FILE="$LOG_DIR/gps_tracker.log"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 PYTHON_PATH="/usr/local/pyenv/shims/python3" # Path to the specific Python interpreter
 
@@ -36,8 +34,6 @@ Restart=always
 RestartSec=10
 StartLimitInterval=200
 StartLimitBurst=5
-StandardOutput=append:/data/openpilot/traccar-python-client/logs/gps_tracker.log
-StandardError=append:/data/openpilot/traccar-python-client/logs/gps_tracker.log
 Environment="PYTHONPATH=/usr/local/pyenv/shims/python3"
 
 [Install]
