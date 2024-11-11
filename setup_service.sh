@@ -30,7 +30,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 ExecStartPre=/bin/sleep 10
-ExecStart=/bin/bash /data/openpilot/traccar-python-client/launcher.sh
+ExecStart=/bin/bash /persist/traccar-python-client/launcher.sh
 WorkingDirectory=/data/openpilot/traccar-python-client
 Restart=always
 RestartSec=10
