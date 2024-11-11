@@ -214,7 +214,7 @@ class GPSTrackerApp:
             if stored_data:
                 success = True
                 for data in stored_data:
-                    lat, lon, alt, acc, timestamp, speed, bearing = data
+                    i, lat, lon, alt, acc, timestamp, speed, bearing = data
                     if not Network.send_gps_data(
                         lat, lon, alt, acc, timestamp, speed, bearing
                     ):
