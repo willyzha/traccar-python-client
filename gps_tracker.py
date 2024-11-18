@@ -238,11 +238,15 @@ class GPSTrackerApp:
 
         while True:
             try:
-                # Update SubMaster every 5 seconds (5000ms)
+                gps_data = None
+                # Update SubMaster with 5 second timeout (5000ms)
                 sm.update(5000)
 
-                # Get GPS data using the SubMaster instance
-                gps_data = GPSHandler.get_gps_data(sm)
+                if sm.updated["deviceState"]:
+                    if sm['deviceState'].started:
+                        # Get GPS data using the SubMaster instance
+                        gps_data = GPSHandler.get_gps_data(sm)
+
                 timestamp = (
                     datetime.utcnow().isoformat() + "Z"
                 )  # Always get the current timestamp
