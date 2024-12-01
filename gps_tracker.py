@@ -246,7 +246,7 @@ class GPSTrackerApp:
                     if not sm['deviceState'].started:
                         # Get GPS data using the SubMaster instance
                         time.sleep(UPDATE_FREQUENCY)
-                        offroad_count++;
+                        offroad_count += 1
 
                         if offroad_count % (UPDATE_FREQUENCY * 12) == 0:
                             logging.info(f"Currently offroad but allowing update ping.")
