@@ -249,6 +249,7 @@ class GPSTrackerApp:
                         offroad_count++;
 
                         if offroad_count % (UPDATE_FREQUENCY * 12) == 0:
+                            logging.info(f"Currently offroad but allowing update ping.")
                             offroad_count = 0
                         else:
                             continue
