@@ -241,11 +241,17 @@ class GPSTrackerApp:
                 # Update SubMaster with 5 second timeout (5000ms)
                 sm.update(5000)
 
+                offroad_count = 0;
                 if sm.updated["deviceState"]:
                     if not sm['deviceState'].started:
                         # Get GPS data using the SubMaster instance
                         time.sleep(UPDATE_FREQUENCY)
-                        continue
+                        offroad_count++;
+
+                        if offroad_count % (UPDATE_FREQUENCY * 12) == 0:
+                            offroad_count = 0
+                        else:
+                            continue
 
                 gps_data = GPSHandler.get_gps_data(sm)
 
