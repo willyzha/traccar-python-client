@@ -244,6 +244,8 @@ class GPSTrackerApp:
                 # Update SubMaster with 5 second timeout (5000ms)
                 sm.update(5000)
 
+                gps_data = GPSHandler.get_gps_data(sm)
+                
                 offroad_count = 0;
                 if sm.updated["deviceState"]:
                     if not sm['deviceState'].started:
@@ -253,11 +255,10 @@ class GPSTrackerApp:
                         if offroad_count % OFFROAD_UPDATE_FACTOR == 0:
                             logging.info(f"Currently offroad but allowing update ping.")
                             offroad_count = 0
+                            gps_data = None
                         else:
                             offroad_count += 1
                             continue
-
-                gps_data = GPSHandler.get_gps_data(sm)
 
                 timestamp = (
                     datetime.utcnow().isoformat() + "Z"
