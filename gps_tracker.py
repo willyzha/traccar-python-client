@@ -19,6 +19,7 @@ SERVER_URL = config("SERVER_URL", default="")
 SERVER_PORT = config("SERVER_PORT", default="")
 DEVICE_ID = config("DEVICE_ID", default="123456")
 UPDATE_FREQUENCY = int(config("UPDATE_FREQUENCY", default="5"))
+OFFROAD_UPDATE_FACTOR = 12  # Offroad frequency will be UPDATE_FREQUENCY * OFFROAD_UPDATE_FACTOR
 
 if SERVER_PORT:
     SERVER_URL = f"{SERVER_URL}:{SERVER_PORT}"
@@ -246,12 +247,12 @@ class GPSTrackerApp:
                     if not sm['deviceState'].started:
                         # Get GPS data using the SubMaster instance
                         time.sleep(UPDATE_FREQUENCY)
-                        offroad_count += 1
 
-                        if offroad_count % (UPDATE_FREQUENCY * 12) == 0:
+                        if offroad_count % OFFROAD_UPDATE_FACTOR == 0:
                             logging.info(f"Currently offroad but allowing update ping.")
                             offroad_count = 0
                         else:
+                            offroad_count += 1
                             continue
 
                 gps_data = GPSHandler.get_gps_data(sm)
