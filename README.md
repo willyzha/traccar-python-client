@@ -56,6 +56,17 @@ Ensure all Python dependencies are installed:
     sudo reboot
     systemctl status gps-tracker.service
 
+### Update Instructions
+
+    sudo mount -o remount,rw /persist
+    cd /persist
+    git fetch
+    git checkout origin/master
+
+    # Reboot and test
+    sudo reboot
+    systemctl status gps-tracker.service
+
 Contributions & Support
 -----------------------
 
