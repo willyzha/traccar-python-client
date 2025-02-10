@@ -19,7 +19,9 @@ SERVER_URL = config("SERVER_URL", default="")
 SERVER_PORT = config("SERVER_PORT", default="")
 DEVICE_ID = config("DEVICE_ID", default="123456")
 UPDATE_FREQUENCY = int(config("UPDATE_FREQUENCY", default="5"))
-OFFROAD_UPDATE_FACTOR = 12  # Offroad frequency will be UPDATE_FREQUENCY * OFFROAD_UPDATE_FACTOR
+
+# Offroad frequency will be UPDATE_FREQUENCY * OFFROAD_UPDATE_FACTOR
+OFFROAD_UPDATE_FACTOR = int(config("UPDATE_FREQUENCY", default="12"))
 
 if SERVER_PORT:
     SERVER_URL = f"{SERVER_URL}:{SERVER_PORT}"
