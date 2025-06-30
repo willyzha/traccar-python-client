@@ -234,31 +234,47 @@ class GPSTrackerApp:
     @staticmethod
     def run():
         try:
-            sm = messaging.SubMaster(["gpsLocation", "deviceState"])
+            device_state_sm = messaging.SubMaster(["deviceState"])
+        except Exception as e:
+            logging.error(f"Failed to initialize deviceState SubMaster: {e}")
+            return
+
+        try:
+            sm = messaging.SubMaster(["gpsLocation"])
         except Exception as e:
             logging.error(f"Failed to initialize SubMaster: {e}")
             return
-
+        
+        device_state_sm.update(1000)
+        onroad = device_state_sm['deviceState'].started
+        offroad_count = 0
+        
         while True:
             try:
+                device_state_sm.update(1000)
+
+                if device_state_sm.updated["deviceState"]:
+                    if onroad != device_state_sm['deviceState'].started:
+                        # If switching from onroad to offroad or vica versa restart the client.
+                        logging.error(f"Switching from offroad to onroad restarting")
+                        return
+                
                 # Update SubMaster with 5 second timeout (5000ms)
                 sm.update(5000)
 
                 gps_data = GPSHandler.get_gps_data(sm)
                 
-                offroad_count = 0;
-                if sm.updated["deviceState"]:
-                    if not sm['deviceState'].started:
-                        # Get GPS data using the SubMaster instance
-                        time.sleep(UPDATE_FREQUENCY)
+                if not onroad:
+                    # Get GPS data using the SubMaster instance
+                    time.sleep(UPDATE_FREQUENCY)
 
-                        if offroad_count % OFFROAD_UPDATE_FACTOR == 0:
-                            logging.info(f"Currently offroad but allowing update ping.")
-                            offroad_count = 0
-                            gps_data = None
-                        else:
-                            offroad_count += 1
-                            continue
+                    if offroad_count % OFFROAD_UPDATE_FACTOR == 0:
+                        logging.info(f"Currently offroad but allowing update ping.")
+                        offroad_count = 0
+                        gps_data = None
+                    else:
+                        offroad_count += 1
+                        continue
 
                 timestamp = (
                     datetime.utcnow().isoformat() + "Z"
@@ -334,4 +350,6 @@ class GPSTrackerApp:
 if __name__ == "__main__":
     logging.info("Starting GPS tracking service...")
     Database.init_db()  # Initialize the SQLite database
+    # 30s startup delay
+    time.sleep(30000)
     GPSTrackerApp.run()
