@@ -259,12 +259,12 @@ class GPSTrackerApp:
                         logging.error(f"Switching from offroad to onroad restarting")
                         return
                 
-                # Update SubMaster with 5 second timeout (5000ms)
-                sm.update(5000)
+                if onroad:
+                    # Update SubMaster with 5 second timeout (5000ms)
+                    sm.update(5000)
 
-                gps_data = GPSHandler.get_gps_data(sm)
-                
-                if not onroad:
+                    gps_data = GPSHandler.get_gps_data(sm)
+                else:
                     # Get GPS data using the SubMaster instance
                     time.sleep(UPDATE_FREQUENCY)
 
