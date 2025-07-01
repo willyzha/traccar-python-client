@@ -249,6 +249,11 @@ class GPSTrackerApp:
         onroad = device_state_sm['deviceState'].started
         offroad_count = 0
         
+        if onroad:
+            logging.info("Starting onroad!")
+        else:
+            logging.info("Starting offroad!")
+
         while True:
             try:
                 device_state_sm.update(1000)
