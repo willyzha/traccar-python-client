@@ -238,19 +238,19 @@ class GPSTrackerApp:
         except Exception as e:
             logging.error(f"Failed to initialize deviceState SubMaster: {e}")
             return
-
-        try:
-            sm = messaging.SubMaster(["gpsLocation"])
-        except Exception as e:
-            logging.error(f"Failed to initialize SubMaster: {e}")
-            return
         
         device_state_sm.update(1000)
         onroad = device_state_sm['deviceState'].started
         offroad_count = 0
-        
+
+        sm = None
         if onroad:
             logging.info("Starting onroad!")
+            try:
+                sm = messaging.SubMaster(["gpsLocation"])
+            except Exception as e:
+                logging.error(f"Failed to initialize SubMaster: {e}")
+                return
         else:
             logging.info("Starting offroad!")
 
