@@ -356,5 +356,5 @@ if __name__ == "__main__":
     logging.info("Starting GPS tracking service...")
     Database.init_db()  # Initialize the SQLite database
     # 30s startup delay
-    time.sleep(30)
+    time.sleep(120)
     GPSTrackerApp.run()
