@@ -6,9 +6,13 @@ SCRIPT_DIR="/persist/traccar-python-client" # Path to traccar-python-client
 LAUNCHER_PATH="$SCRIPT_DIR/launcher.sh"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 PYTHON_PATH="/usr/local/pyenv/shims/python3" # Path to the specific Python interpreter
+LOG_FILE="/persist/traccar-python-client/logs/tracker.log"
+
+# Ensure log directory exists
+mkdir -p "$SCRIPT_DIR/logs"
 
 # Ensure launcher.sh is executable
-chmod +x $LAUNCHER_PATH
+chmod +x "$LAUNCHER_PATH"
 
 # Ensure all dependencies are installed using the correct Python interpreter
 $PYTHON_PATH -m pip install -r $SCRIPT_DIR/requirements.txt
