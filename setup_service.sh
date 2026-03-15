@@ -6,7 +6,6 @@ SCRIPT_DIR="/persist/traccar-python-client" # Path to traccar-python-client
 LAUNCHER_PATH="$SCRIPT_DIR/launcher.sh"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 PYTHON_PATH="/usr/local/pyenv/shims/python3" # Path to the specific Python interpreter
-LOG_FILE="/persist/traccar-python-client/logs/tracker.log"
 
 # Ensure log directory exists
 mkdir -p "$SCRIPT_DIR/logs"
@@ -49,4 +48,5 @@ sudo systemctl daemon-reload
 echo "Enabling GPS Tracker service to start after network-online.target..."
 sudo systemctl enable $SERVICE_NAME.service
 
-echo "Service setup complete. Logs are located at $LOG_FILE"
+echo "Service setup complete. To view logs, run:"
+echo "sudo journalctl -u $SERVICE_NAME.service -f"
