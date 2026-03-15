@@ -117,7 +117,7 @@ class Network:
         try:
             response = await self.client.get(SERVER_URL, params=params)
             if response.status_code == 200:
-                logging.info(f"Data sent: {params}")
+                logging.debug(f"Data sent: {params}")
                 return True
             else:
                 logging.error(f"Failed to send data. Status code: {response.status_code}")
@@ -173,7 +173,6 @@ class GPSTrackerApp:
         if not stored_data:
             return
 
-        logging.info(f"Attempting to send {len(stored_data)} stored records...")
         successfully_sent_ids = []
         
         for data in stored_data:
@@ -225,7 +224,7 @@ class GPSTrackerApp:
                     gps_data = GPSHandler.get_gps_data(gps_sm)
                 else:
                     if self.offroad_count % OFFROAD_UPDATE_FACTOR == 0:
-                        logging.info("Offroad update ping.")
+                        logging.debug("Offroad update ping.")
                         self.offroad_count = 0
                         # gps_data remains None, we'll just send a heartbeat
                     else:
