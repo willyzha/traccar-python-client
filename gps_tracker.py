@@ -19,9 +19,10 @@ BUFFER_SIZE = int(config("BUFFER_SIZE", default=10))
 SERVER_URL = config("SERVER_URL", default="")
 SERVER_PORT = config("SERVER_PORT", default="")
 DEVICE_ID = config("DEVICE_ID", default="123456")
-UPDATE_FREQUENCY = int(config("UPDATE_FREQUENCY", default="5"))
+UPDATE_FREQUENCY = int(config("UPDATE_FREQUENCY", default="10"))
 OFFROAD_UPDATE_FACTOR = int(config("OFFROAD_UPDATE_FACTOR", default="12"))
 STARTUP_DELAY = int(config("STARTUP_DELAY", default="120"))
+MAX_RECORDS = int(config("MAX_RECORDS", default="1000"))
 
 if SERVER_PORT:
     SERVER_URL = f"{SERVER_URL}:{SERVER_PORT}"
@@ -48,7 +49,7 @@ class Database:
 
     @classmethod
     def store_gps_data(cls, data_list: List[Tuple]):
-        """Store multiple GPS data points locally in the SQLite database."""
+        """Store multiple GPS data points locally in the SQLite database and enforce size limits."""
         if not data_list:
             return
         try:
@@ -57,6 +58,10 @@ class Database:
                     """INSERT INTO gps_data (lat, lon, altitude, accuracy, timestamp, speed, bearing)
                         VALUES (?, ?, ?, ?, ?, ?, ?)""",
                     data_list,
+                )
+                # Enforce record limit: delete oldest if we exceed MAX_RECORDS
+                conn.execute(
+                    f"DELETE FROM gps_data WHERE id NOT IN (SELECT id FROM gps_data ORDER BY id DESC LIMIT {MAX_RECORDS})"
                 )
         except sqlite3.Error as e:
             logging.error(f"Error while storing data: {e}")
