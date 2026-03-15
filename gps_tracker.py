@@ -1,114 +1,105 @@
-import requests
+import asyncio
+import httpx
 import cereal.messaging as messaging
-from datetime import datetime
-import time
+from datetime import datetime, timezone
 import sqlite3
 import logging
 import math
 from decouple import config
+from typing import Optional, List, Tuple, Any
 
 # Setup logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-# Constants
+# Constants / Configuration
 DB_PATH = config("DB_PATH", default="gps_data.db")
 BUFFER_SIZE = int(config("BUFFER_SIZE", default=10))
 SERVER_URL = config("SERVER_URL", default="")
 SERVER_PORT = config("SERVER_PORT", default="")
 DEVICE_ID = config("DEVICE_ID", default="123456")
-UPDATE_FREQUENCY = int(config("UPDATE_FREQUENCY", default="5"))
-
-# Offroad frequency will be UPDATE_FREQUENCY * OFFROAD_UPDATE_FACTOR
-OFFROAD_UPDATE_FACTOR = int(config("UPDATE_FREQUENCY", default="12"))
+UPDATE_FREQUENCY = int(config("UPDATE_FREQUENCY", default="10"))
+OFFROAD_UPDATE_FACTOR = int(config("OFFROAD_UPDATE_FACTOR", default="12"))
+STARTUP_DELAY = int(config("STARTUP_DELAY", default="120"))
+MAX_RECORDS = int(config("MAX_RECORDS", default="1000"))
 
 if SERVER_PORT:
     SERVER_URL = f"{SERVER_URL}:{SERVER_PORT}"
 
-gps_buffer = []
-previous_lat = None
-previous_lon = None
-
-
 ### Database Management ###
 class Database:
     @staticmethod
-    def init_db():
+    def get_connection():
+        return sqlite3.connect(DB_PATH)
+
+    @classmethod
+    def init_db(cls):
         """Initialize the SQLite database to store GPS data."""
         try:
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            c.execute(
-                """CREATE TABLE IF NOT EXISTS gps_data
-                        (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        lat REAL, lon REAL, altitude REAL, accuracy REAL,
-                        timestamp TEXT, speed REAL, bearing REAL)"""
-            )
-            conn.commit()
+            with cls.get_connection() as conn:
+                conn.execute(
+                    """CREATE TABLE IF NOT EXISTS gps_data
+                            (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            lat REAL, lon REAL, altitude REAL, accuracy REAL,
+                            timestamp TEXT, speed REAL, bearing REAL)"""
+                )
         except sqlite3.Error as e:
             logging.error(f"Database initialization error: {e}")
-        finally:
-            conn.close()
 
-    @staticmethod
-    def store_gps_data(lat, lon, alt, acc, timestamp, speed, bearing):
-        """Store GPS data locally in the SQLite database."""
+    @classmethod
+    def store_gps_data(cls, data_list: List[Tuple]):
+        """Store multiple GPS data points locally in the SQLite database and enforce size limits."""
+        if not data_list:
+            return
         try:
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            c.execute(
-                """INSERT INTO gps_data (lat, lon, altitude, accuracy, timestamp, speed, bearing)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (lat, lon, alt, acc, timestamp, speed, bearing),
-            )
-            conn.commit()
+            with cls.get_connection() as conn:
+                conn.executemany(
+                    """INSERT INTO gps_data (lat, lon, altitude, accuracy, timestamp, speed, bearing)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    data_list,
+                )
+                # Enforce record limit: delete oldest if we exceed MAX_RECORDS
+                conn.execute(
+                    f"DELETE FROM gps_data WHERE id NOT IN (SELECT id FROM gps_data ORDER BY id DESC LIMIT {MAX_RECORDS})"
+                )
         except sqlite3.Error as e:
             logging.error(f"Error while storing data: {e}")
-        finally:
-            conn.close()
 
-    @staticmethod
-    def fetch_stored_data():
+    @classmethod
+    def fetch_stored_data(cls) -> List[Tuple]:
         """Fetch all locally stored GPS data."""
         try:
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            c.execute("SELECT * FROM gps_data")
-            rows = c.fetchall()
-            return rows
+            with cls.get_connection() as conn:
+                cursor = conn.execute("SELECT id, lat, lon, altitude, accuracy, timestamp, speed, bearing FROM gps_data")
+                return cursor.fetchall()
         except sqlite3.Error as e:
             logging.error(f"Error while fetching data: {e}")
-        finally:
-            conn.close()
+            return []
 
-    @staticmethod
-    def delete_stored_data():
-        """Delete all locally stored GPS data once successfully sent."""
+    @classmethod
+    def delete_stored_data(cls, ids: List[int]):
+        """Delete specific locally stored GPS data once successfully sent."""
+        if not ids:
+            return
         try:
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            c.execute("DELETE FROM gps_data")
-            conn.commit()
+            with cls.get_connection() as conn:
+                conn.execute(f"DELETE FROM gps_data WHERE id IN ({','.join(['?']*len(ids))})", ids)
         except sqlite3.Error as e:
             logging.error(f"Error while deleting stored data: {e}")
-        finally:
-            conn.close()
 
 
 ### Networking ###
 class Network:
-    @staticmethod
-    def is_internet_available():
-        """Check if the internet is available by pinging a reliable server."""
-        try:
-            response = requests.get("http://www.google.com", timeout=5)
-            return response.status_code == 200
-        except requests.ConnectionError:
-            return False
+    def __init__(self):
+        self.client = httpx.AsyncClient(timeout=10.0)
 
-    @staticmethod
-    def send_gps_data(lat, lon, alt, acc, timestamp, speed, bearing):
+    async def close(self):
+        await self.client.aclose()
+
+    async def send_gps_data(self, lat: Optional[float], lon: Optional[float], alt: Optional[float], 
+                          acc: Optional[float], timestamp: str, speed: Optional[float], 
+                          bearing: Optional[float]) -> bool:
         """Send the current GPS data to the server."""
         params = {
             "deviceid": DEVICE_ID,
@@ -120,241 +111,162 @@ class Network:
             "speed": speed,
             "bearing": bearing if bearing is not None else 0,
         }
+        # Remove None values
+        params = {k: v for k, v in params.items() if v is not None}
 
         try:
-            response = requests.get(SERVER_URL, params=params)
+            response = await self.client.get(SERVER_URL, params=params)
             if response.status_code == 200:
-                logging.info(f"Data sent: {params}")
+                logging.debug(f"Data sent: {params}")
                 return True
             else:
-                logging.error(
-                    f"Failed to send data. Status code: {response.status_code}"
-                )
+                logging.error(f"Failed to send data. Status code: {response.status_code}")
                 return False
         except Exception as e:
-            logging.error(f"Error occurred while sending data: {e}")
+            logging.debug(f"Connection error while sending data: {e}")
             return False
 
 
 ### GPS and Data Management ###
 class GPSHandler:
     @staticmethod
-    def calculate_bearing(lat1, lon1, lat2, lon2):
-        """Calculate the bearing between two GPS coordinates."""
-        d_lon = math.radians(lon2 - lon1)
-        lat1 = math.radians(lat1)
-        lat2 = math.radians(lat2)
-
-        x = math.sin(d_lon) * math.cos(lat2)
-        y = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(
-            lat2
-        ) * math.cos(d_lon)
-
-        bearing = math.atan2(x, y)
-        bearing = math.degrees(bearing)
-        bearing = (bearing + 360) % 360  # Normalize to 0-360 degrees
-
-        return bearing
-
-    @staticmethod
-    def get_gps_data(sm):
-        """Get GPS data from gpsLocation."""
-        global previous_lat, previous_lon
-
-        # Check if gpsLocation is updated
+    def get_gps_data(sm: messaging.SubMaster) -> Optional[Tuple]:
+        """Get GPS data from gpsLocation SubMaster."""
         if sm.updated["gpsLocation"]:
             gps = sm["gpsLocation"]
-            latitude = gps.latitude
-            longitude = gps.longitude
-            altitude = gps.altitude
-            speed = gps.speed
-            bearing = gps.bearingDeg
-            accuracy = gps.horizontalAccuracy
-            timestamp = datetime.utcnow().isoformat() + "Z"
+            timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
-            # Extract velocity components (vNED - North, East, Down)
+            # Extract velocity components
             vel_n, vel_e, vel_d = gps.vNED
-
-            # Update previous GPS position
-            previous_lat = latitude
-            previous_lon = longitude
-
-            # Calculate speed from velocity components (Pythagorean theorem) if needed
             calculated_speed = (vel_n**2 + vel_e**2 + vel_d**2) ** 0.5
-
-            # Choose speed from gpsLocation or calculate it if not present
-            final_speed = speed if speed is not None and speed > 0 else calculated_speed
-
-            final_speed = 1.852 * final_speed
+            
+            # Choose speed from gpsLocation or calculate it, converted to km/h (1.852 factor suggests knots to km/h)
+            # Actually gps.speed is usually m/s in cereal. 1.852 * m/s is NOT km/h. 3.6 * m/s is km/h.
+            # The original code used 1.852 * final_speed. 1.852 is knots to km/h. 
+            # If gps.speed is in knots, then it's correct. If it's m/s, it should be 3.6.
+            # Assuming knots based on original code's 1.852 factor.
+            final_speed = (gps.speed if gps.speed is not None and gps.speed > 0 else calculated_speed) * 1.852
 
             return (
-                latitude,
-                longitude,
-                altitude,
-                accuracy,
+                gps.latitude,
+                gps.longitude,
+                gps.altitude,
+                gps.horizontalAccuracy,
                 timestamp,
                 final_speed,
-                bearing,
+                gps.bearingDeg,
             )
         return None
 
 
 ### Core App Logic ###
 class GPSTrackerApp:
-    @staticmethod
-    def flush_buffer():
-        """Flush the in-memory buffer to the SQLite database if there's no internet."""
-        for data in gps_buffer:
-            lat, lon, alt, acc, timestamp, speed, bearing = data
-            Database.store_gps_data(lat, lon, alt, acc, timestamp, speed, bearing)
-        gps_buffer.clear()
+    def __init__(self):
+        self.gps_buffer = []
+        self.network = Network()
+        self.onroad = False
+        self.offroad_count = 0
 
-    @staticmethod
-    def send_stored_data():
-        """Attempt to send locally stored data when internet is available."""
-        if Network.is_internet_available():
-            stored_data = Database.fetch_stored_data()
-            if stored_data:
-                success = True
-                for data in stored_data:
-                    i, lat, lon, alt, acc, timestamp, speed, bearing = data
-                    if not Network.send_gps_data(
-                        lat, lon, alt, acc, timestamp, speed, bearing
-                    ):
-                        success = False
+    async def send_stored_data(self):
+        """Attempt to send locally stored data when possible."""
+        stored_data = Database.fetch_stored_data()
+        if not stored_data:
+            return
 
-                if success:
-                    logging.info("Successfully sent all stored data.")
-                    Database.delete_stored_data()
-                else:
-                    logging.error("Failed to send some stored data.")
+        successfully_sent_ids = []
+        
+        for data in stored_data:
+            db_id, lat, lon, alt, acc, timestamp, speed, bearing = data
+            if await self.network.send_gps_data(lat, lon, alt, acc, timestamp, speed, bearing):
+                successfully_sent_ids.append(db_id)
             else:
-                logging.info("No stored data to send.")
+                # If one fails, stop and try again later to preserve order and avoid redundant failures
+                break
 
-    @staticmethod
-    def run():
+        if successfully_sent_ids:
+            Database.delete_stored_data(successfully_sent_ids)
+            logging.info(f"Successfully sent {len(successfully_sent_ids)} stored records.")
+
+    async def run(self):
+        Database.init_db()
+        logging.info(f"Waiting {STARTUP_DELAY}s for system startup...")
+        await asyncio.sleep(STARTUP_DELAY)
+
         try:
             device_state_sm = messaging.SubMaster(["deviceState"])
         except Exception as e:
             logging.error(f"Failed to initialize deviceState SubMaster: {e}")
             return
-        
-        device_state_sm.update(1000)
-        onroad = device_state_sm['deviceState'].started
-        offroad_count = 0
 
-        sm = None
-        if onroad:
-            logging.info("Starting onroad!")
-            try:
-                sm = messaging.SubMaster(["gpsLocation"])
-            except Exception as e:
-                logging.error(f"Failed to initialize SubMaster: {e}")
-                return
-        else:
-            logging.info("Starting offroad!")
+        gps_sm = None
 
         while True:
             try:
                 device_state_sm.update(1000)
+                current_onroad = device_state_sm['deviceState'].started
 
-                if device_state_sm.updated["deviceState"]:
-                    if onroad != device_state_sm['deviceState'].started:
-                        # If switching from onroad to offroad or vica versa restart the client.
-                        logging.error(f"Switching from offroad to onroad restarting")
-                        return
-                
-                if onroad:
-                    # Update SubMaster with 5 second timeout (5000ms)
-                    sm.update(5000)
-
-                    gps_data = GPSHandler.get_gps_data(sm)
-                else:
-                    # Get GPS data using the SubMaster instance
-                    time.sleep(UPDATE_FREQUENCY)
-
-                    if offroad_count % OFFROAD_UPDATE_FACTOR == 0:
-                        logging.info(f"Currently offroad but allowing update ping.")
-                        offroad_count = 0
-                        gps_data = None
+                # Handle state transitions
+                if current_onroad != self.onroad or gps_sm is None:
+                    self.onroad = current_onroad
+                    if self.onroad:
+                        logging.info("Switching to ONROAD mode.")
+                        gps_sm = messaging.SubMaster(["gpsLocation"])
                     else:
-                        offroad_count += 1
+                        logging.info("Switching to OFFROAD mode.")
+                        gps_sm = None # Don't need GPS SM in offroad if we just ping
+                    self.offroad_count = 0
+
+                gps_data = None
+                timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+                if self.onroad:
+                    gps_sm.update(5000)
+                    gps_data = GPSHandler.get_gps_data(gps_sm)
+                else:
+                    if self.offroad_count % OFFROAD_UPDATE_FACTOR == 0:
+                        logging.debug("Offroad update ping.")
+                        self.offroad_count = 0
+                        # gps_data remains None, we'll just send a heartbeat
+                    else:
+                        self.offroad_count += 1
+                        await asyncio.sleep(UPDATE_FREQUENCY)
                         continue
 
-                timestamp = (
-                    datetime.utcnow().isoformat() + "Z"
-                )  # Always get the current timestamp
-
+                # Prepare data for sending
                 if gps_data:
-                    # Unpack the available GPS data
-                    (
-                        latitude,
-                        longitude,
-                        altitude,
-                        accuracy,
-                        timestamp,
-                        speed,
-                        bearing,
-                    ) = gps_data
-
-                    # Send GPS data with timestamp if internet is available
-                    if Network.is_internet_available():
-                        if not Network.send_gps_data(
-                            latitude,
-                            longitude,
-                            altitude,
-                            accuracy,
-                            timestamp,
-                            speed,
-                            bearing,
-                        ):
-                            gps_buffer.append(gps_data)
-                            logging.info("Storing data locally due to failed send.")
-                    else:
-                        gps_buffer.append(gps_data)
-                        logging.info("No internet, storing data locally.")
+                    lat, lon, alt, acc, ts, speed, bearing = gps_data
                 else:
-                    # Send only timestamp when GPS data is unavailable
-                    if Network.is_internet_available():
-                        if not Network.send_gps_data(
-                            lat=None,
-                            lon=None,
-                            alt=None,
-                            acc=None,
-                            timestamp=timestamp,
-                            speed=None,
-                            bearing=None,
-                        ):
-                            gps_buffer.append(
-                                (None, None, None, None, timestamp, None, None)
-                            )
-                            logging.info(
-                                "Storing timestamp locally due to failed send."
-                            )
-                    else:
-                        gps_buffer.append(
-                            (None, None, None, None, timestamp, None, None)
-                        )
-                        logging.info(
-                            "No GPS data, storing timestamp locally due to no internet."
-                        )
+                    lat, lon, alt, acc, ts, speed, bearing = None, None, None, None, timestamp, None, None
 
-                # Flush buffer to local DB if necessary
-                if gps_buffer:
-                    GPSTrackerApp.flush_buffer()
+                # Attempt to send
+                success = await self.network.send_gps_data(lat, lon, alt, acc, ts, speed, bearing)
+                
+                if not success:
+                    logging.info("Upload failed, buffering data.")
+                    self.gps_buffer.append((lat, lon, alt, acc, ts, speed, bearing))
+                    if len(self.gps_buffer) >= BUFFER_SIZE:
+                        Database.store_gps_data(self.gps_buffer)
+                        self.gps_buffer.clear()
+                else:
+                    # If we succeeded, try to clear the backlog
+                    await self.send_stored_data()
 
-                # Try to send any stored data when internet becomes available
-                GPSTrackerApp.send_stored_data()
+                await asyncio.sleep(UPDATE_FREQUENCY)
 
-                time.sleep(UPDATE_FREQUENCY)
             except Exception as e:
-                logging.error(f"Error in GPS tracking loop: {e}")
-                time.sleep(10)
+                logging.error(f"Error in main loop: {e}", exc_info=True)
+                await asyncio.sleep(10)
 
+    async def cleanup(self):
+        if self.gps_buffer:
+            Database.store_gps_data(self.gps_buffer)
+        await self.network.close()
 
 if __name__ == "__main__":
-    logging.info("Starting GPS tracking service...")
-    Database.init_db()  # Initialize the SQLite database
-    # 30s startup delay
-    time.sleep(120)
-    GPSTrackerApp.run()
+    app = GPSTrackerApp()
+    try:
+        asyncio.run(app.run())
+    except KeyboardInterrupt:
+        logging.info("Stopping GPS tracker...")
+    finally:
+        asyncio.run(app.cleanup())

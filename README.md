@@ -1,7 +1,17 @@
 Comma 3x Traccar Python Client
 ==============================
 
-A lightweight GPS tracking client designed for easy integration with Comma 3x, enabling efficient and reliable data management.
+A lightweight, high-performance GPS tracking client designed for Comma 3x devices, enabling efficient and reliable data management with Traccar.
+
+Features
+--------
+
+- **Asynchronous I/O:** Uses `asyncio` and `httpx` for non-blocking network operations, ensuring the tracking loop remains responsive.
+- **Persistent Connections:** Maintains an active HTTP session for efficient data transmission.
+- **Robust Local Storage:** Uses SQLite with transaction-safe context managers to buffer data when offline.
+- **Smart Power Management:** Automatically switches between Onroad (high frequency) and Offroad (heartbeat) modes.
+- **Graceful Transitions:** Seamlessly handles device state changes without requiring script restarts.
+- **Modern Python:** Fully type-hinted and uses UTC-aware timestamps.
 
 Quick Setup on Comma 3x
 -----------------------
@@ -12,62 +22,42 @@ Quick Setup on Comma 3x
     cd traccar-python-client
     
 
+### Configuration:
+
+1. Copy the example environment file:
+   `cp .env.example .env`
+2. Edit `.env` to set your `SERVER_URL` and `DEVICE_ID`.
+
 ### Run the Setup Script:
 
     sudo ./setup_service.sh
     
 
-This will configure and enable the application as a system service on your Comma 3x.
+**Note:** The setup script automatically handles the installation of all necessary Python dependencies (like `httpx` and `python-decouple`) using the device's internal Python interpreter. You do not need to run `pip install` manually unless you are troubleshooting.
 
-Configuration
+### Manual Dependency Installation (Optional):
+
+If you ever need to manually install or update dependencies on the device:
+
+    /usr/local/pyenv/shims/python3 -m pip install -r requirements.txt
+
+Configuration (.env)
 -------------
 
-**.env File:** Edit the `.env` file to customize settings like port numbers and other environment variables as needed for your setup.
+- `SERVER_URL`: Your Traccar server URL (e.g., `https://demo.traccar.org`).
+- `SERVER_PORT`: (Optional) The port for the OsmAnd protocol (usually `5055`).
+- `DEVICE_ID`: Your unique device identifier.
+- `UPDATE_FREQUENCY`: Seconds between updates while Onroad.
+- `OFFROAD_UPDATE_FACTOR`: Multiply `UPDATE_FREQUENCY` by this for Offroad heartbeats.
+- `DB_PATH`: Path to the local SQLite database.
+- `BUFFER_SIZE`: Number of records to buffer in memory before flushing to disk.
+- `STARTUP_DELAY`: Seconds to wait after boot before starting the tracker.
 
-Running the GPS Tracker
------------------------
+Monitoring
+----------
 
-The application runs as a background service, managed via `launcher.sh`. This ensures the GPS tracker starts automatically with the device and stays active.
+Check service status:
+`systemctl status gps-tracker.service`
 
-Logs and Monitoring
--------------------
-
-Application logs are stored in the `logs` directory, providing easy access for monitoring and troubleshooting.
-
-Dependencies
-------------
-
-Ensure all Python dependencies are installed:
-
-    pip install -r requirements.txt
-    
-### Setup Instructions
-
-    sudo mount -o remount,rw /persist
-    cd /persist
-    git clone https://github.com/webnizam/traccar-python-client
-
-    # Edit and config .env as required
-
-    sudo mount -o remount,rw /
-    sudo bash setup_service.sh
-    
-    # Reboot and test
-    sudo reboot
-    systemctl status gps-tracker.service
-
-### Update Instructions
-
-    sudo mount -o remount,rw /persist
-    cd /persist
-    git fetch
-    git checkout origin/master
-
-    # Reboot and test
-    sudo reboot
-    systemctl status gps-tracker.service
-
-Contributions & Support
------------------------
-
-We welcome contributions! Feel free to submit issues or pull requests on the GitHub page. For any questions or support, refer to the repository's issues section.
+View logs:
+`journalctl -u gps-tracker.service -f`

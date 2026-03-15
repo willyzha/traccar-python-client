@@ -1,2 +1,4 @@
 python-decouple
 requests
+httpx
+cereal
